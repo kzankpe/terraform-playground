@@ -1,0 +1,139 @@
+name: Terraform CI Build
+on:
+    push:
+        branches: [features/*, main]
+    pull_request: 
+        branches: [main]
+jobs:
+    Version:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v3
+              name: Checkout
+              with:
+                fetch-depth: 0
+            - uses: gittools/actions/gitversion/setup@v0
+              name: Install Giversion 5.x
+              with:
+                versionSpec: '5.x'
+            - uses: gittools/actions/gitversion/execute@v0
+              name: Determine Version
+              with:
+                useConfigFile: true
+                configFilePath: '.gitversion'
+
+    Terraform:
+        runs-on: ubuntu-latest
+        name: Terraform Cheks
+        defaults:
+          run:
+            working-directory: aks
+
+        steps:
+          - uses: actions/checkout@v3
+            name: Checkout
+          - uses: hashicorp/setup-terraform@v3
+            with:
+              terraform_version: "1.7.2"
+          - run: terraform init -backend=false
+            name: Terrform Init
+          - run: terraform fmt -check
+            name: Terraform format check
+            continue-on-error: true
+          - run: terraform validate -no-color
+            name: Terraform validate
+
+
+    Planning:
+        runs-on: self-hosted
+        name: Terraform Plan
+        needs: Terraform
+        defaults:
+          run:
+            working-directory: aks
+        steps:
+          - uses: actions/checkout@v3
+            name: Checkout
+
+          - uses: hashicorp/setup-terraform@v3
+            with:
+              terraform_version: "1.7.2"
+          - run: terraform init -backend-config="resource_group_name=$RESOURCE_GROUP" -backend-config="storage_account_name=$STORAGE_ACCOUNT" -backend-config="container_name=$CONTAINER_NAME" -backend-config="key=$TF_KEY"
+            env:
+              RESOURCE_GROUP: "${{ secrets.ARM_RESOURCE_GROUP_NAME }}"
+              ARM_TENANT_ID: "${{ secrets.ARM_TENANT_ID }}"
+              ARM_SUBSCRIPTION_ID: "${{ secrets.ARM_SUBSCRIPTION_ID }}"
+              ARM_CLIENT_ID: "${{ secrets.ARM_CLIENT_ID }}"
+              ARM_USE_MSI: true
+              STORAGE_ACCOUNT: "${{ secrets.ARM_STORAGE_ACCOUNT_NAME }}"
+              CONTAINER_NAME: "${{ secrets.ARM_CONTAINER_NAME }}"
+              TF_KEY: "${{ secrets.ARM_TF_KEY }}"
+            name: Terrform Init
+          - run : terraform plan
+            env:
+              ARM_TENANT_ID: "${{ secrets.ARM_TENANT_ID }}"
+              ARM_SUBSCRIPTION_ID: "${{ secrets.ARM_SUBSCRIPTION_ID }}"
+              ARM_CLIENT_ID: "${{ secrets.ARM_CLIENT_ID }}"
+              ARM_USE_MSI: true
+            name: Terraform plan
+            id: plan
+            continue-on-error: true
+          - uses: actions/github-script@v6
+            continue-on-error: true
+            if: github.event_name == 'pull_request'
+            env:
+              PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+            with:
+              github-token: ${{ secrets.GITHUB_TOKEN }}
+              script: |
+                // 1. Retrieve existing bot comments for the PR
+                const { data: comments } = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                })
+                const botComment = comments.find(comment => {
+                  return comment.user.type === 'Bot' && comment.body.includes('Terraform Format and Style')
+                })
+
+                // 2. Prepare format of the comment
+                const output = `#### Terraform Format and Style 🖌
+                #### Terraform Initialization ⚙️
+                #### Terraform Validation 🤖
+                <details><summary>Validation Output</summary>
+
+                \`\`\`\n
+                Validation
+                \`\`\`
+
+                </details>
+
+                #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+                <details><summary>Show Plan</summary>
+
+                \`\`\`\n
+                ${process.env.PLAN}
+                \`\`\`
+
+                </details>
+
+                *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+                // 3. If we have a comment, update it, otherwise create a new one
+                if (botComment) {
+                  github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: botComment.id,
+                    body: output
+                  })
+                } else {
+                  github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: output
+                  })
+                }
