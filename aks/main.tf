@@ -21,7 +21,7 @@ resource "azurerm_kubernetes_cluster" "this" {
   name                = var.aksname
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
-  node_resource_group = azurerm_resource_group.this.name
+  node_resource_group = var.nodergname
   kubernetes_version  = data.azurerm_kubernetes_service_versions.current.latest_version
   dns_prefix          = var.rgname
 
