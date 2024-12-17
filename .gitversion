@@ -1,0 +1,31 @@
+mode: Mainline
+assembly-versioning-scheme: MajorMinorPatch
+assembly-file-versioning-scheme: MajorMinorPatchTag
+assembly-informational-format: '{MajorMinorPatch}+{BranchName}+{ShortSha}'
+tag-prefix: '[vV]'
+major-version-bump-message: '\+semver:\s?(breaking|major)'
+minor-version-bump-message: '\+semver:\s?(feature|minor)'
+patch-version-bump-message: '\+semver:\s?(fix|patch)'
+no-bump-message: '\+semver:\s?(none|skip)'
+legacy-semver-padding: 4
+build-metadata-padding: 4
+commits-since-version-source-padding: 4
+commit-message-incrementing: Enabled
+commit-date-format: 'yyyy-MM-dd'
+merge-message-formats: {}
+branches:
+  master:
+    regex: main
+    tag: ci
+    is-mainline: true
+  pull-request:
+    tag: pr
+    increment: Inherit
+  hotfix:
+    regex: ^(hotfix|fix)[/-]
+    increment: Inherit
+    tag: fix
+  feature:
+    regex: feature/*
+    increment: Inherit
+    tag: wip
