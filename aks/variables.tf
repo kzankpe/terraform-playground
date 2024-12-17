@@ -10,6 +10,11 @@ variable "rgname" {
   default = "kzergaks"
 }
 
+variable "nodergname" {
+  type = string
+  description = "Node Resource groupe name"
+  default = "kzergaksnode"
+}
 variable "aksname" {
   type        = string
   description = "AKS name"
