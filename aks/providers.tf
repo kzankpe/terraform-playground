@@ -12,10 +12,15 @@ terraform {
       source  = "hashicorp/tls"
       version = "=4.0.6"
     }
+    
+  }
+  backend "azurerm" {
+    use_azuread_auth = true
   }
 }
 
 provider "azurerm" {
+  skip_provider_registration = true
   features {
 
   }
